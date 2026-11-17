@@ -142,6 +142,11 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-tra
         <div style="width:150px"><label>Morceaux trouvés</label><input id="total" type="number" min="1" max="5000" title="Tu peux corriger ce nombre si YouTube n'a pas tout détecté"></div>
       </div>
       <div class="status" id="status"></div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        <button class="small ghost" id="exportCats">📋 Copier mes corrections de catégories</button>
+        <div id="exportInfo" style="font-size:13px;color:var(--muted);margin-top:8px"></div>
+        <textarea id="exportBox" class="hidden" readonly style="width:100%;height:120px;margin-top:8px;background:#010a13;color:var(--gold2);border:1px solid var(--line);font:12px monospace;padding:8px"></textarea>
+      </div>
     </div>
   </div>
   <div class="cta"><button class="primary" id="startBtn" disabled>Lancer la partie</button></div>
@@ -438,7 +443,7 @@ function reveal(){
   $('#answer').innerHTML = `<div class="main">${esc(cleanTitle(S.cur.title))}</div><div class="full">${esc(S.cur.title)}</div>
     <div class="catFix">Catégorie :<select id="catSel">${opts}</select> <span style="opacity:.7">(corrige-la si besoin, elle sera retenue)</span></div>`;
   const entry = S.history[S.history.length-1];
-  $('#catSel').onchange = e=>{ entry.cat = S.cur.cat = e.target.value; saveCatOverride(entry.id, entry.cat); e.target.blur(); };
+  $('#catSel').onchange = e=>{ entry.cat = S.cur.cat = e.target.value; saveCatOverride(entry.id, entry.cat, entry.title); e.target.blur(); };
   player.unMute(); player.playVideo();
   updateUI();
 }
@@ -512,11 +517,36 @@ const RULES = [
 ];
 // anciennes catégories (versions précédentes) ramenées aux 4 nouvelles
 const OLD_CATS = {'Groupe virtuel':'Skin / Skinline','Esport':'Événement','Arcane / Série':'Événement'};
-let catOverrides = {};
+/* Corrections intégrées au fichier : valables pour tout le monde, sur tous les appareils.
+   Format : "identifiant YouTube": "Catégorie", */
+const BUILTIN_CATS = {
+};
+let catOverrides = {}, catTitles = {};
+try{ catTitles = JSON.parse(localStorage.getItem('bt-lol-cattitles')||'{}'); }catch(e){}
 try{ catOverrides = JSON.parse(localStorage.getItem('bt-lol-cat')||'{}'); }catch(e){}
-function saveCatOverride(id, cat){ if(!id) return; catOverrides[id] = cat; try{ localStorage.setItem('bt-lol-cat', JSON.stringify(catOverrides)); }catch(e){} }
+function saveCatOverride(id, cat, title){
+  if(!id) return; catOverrides[id] = cat; if(title) catTitles[id] = title;
+  try{ localStorage.setItem('bt-lol-cat', JSON.stringify(catOverrides)); localStorage.setItem('bt-lol-cattitles', JSON.stringify(catTitles)); }catch(e){}
+}
+function exportText(){
+  const ids = Object.keys(catOverrides).filter(id=>CATS.includes(OLD_CATS[catOverrides[id]]||catOverrides[id]));
+  if(!ids.length) return '';
+  return '// BLINDTEST-LOL-CATEGORIES (' + ids.length + ')\n' + ids.map(id=>{
+    const c = OLD_CATS[catOverrides[id]] || catOverrides[id];
+    return `  ${JSON.stringify(id)}: ${JSON.stringify(c)},${catTitles[id] ? ' // ' + catTitles[id].replace(/[\r\n]/g,' ') : ''}`;
+  }).join('\n');
+}
+$('#exportCats').onclick = async ()=>{
+  const txt = exportText(), info = $('#exportInfo'), box = $('#exportBox');
+  if(!txt){ info.textContent = 'Aucune correction enregistrée dans ce navigateur pour l\'instant.'; box.classList.add('hidden'); return; }
+  const n = txt.split('\n').length - 1;
+  box.value = txt; box.classList.remove('hidden');
+  try{ await navigator.clipboard.writeText(txt); info.textContent = `✓ ${n} correction(s) copiée(s). Colle-les dans ton message à Claude.`; }
+  catch(e){ box.focus(); box.select(); info.textContent = `${n} correction(s) : sélectionne le texte ci-dessous et copie-le à la main.`; }
+};
 function categoryOf(id, title){
   if(id && catOverrides[id]){ const c = OLD_CATS[catOverrides[id]] || catOverrides[id]; if(CATS.includes(c)) return c; }
+  if(id && CATS.includes(BUILTIN_CATS[id])) return BUILTIN_CATS[id];
   const t = norm(title||'');
   if(!t) return 'Autre';
   for(const [cat, re] of RULES) if(re.test(t)) return cat;
