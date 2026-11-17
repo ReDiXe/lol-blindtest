@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blind test – League of Legends</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#010a13;--panel:#0a1428;--panel2:#0f1e36;--line:#1e2d45;--gold:#c8aa6e;--gold2:#f0e6d2;--teal:#0ac8b9;--blue:#0397ab;--red:#e84057;--muted:#a09b8c}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top,#0c2340 0%,var(--bg) 65%) fixed;color:var(--gold2);font-family:Inter,system-ui,sans-serif}
+h1,h2,h3{font-family:Cinzel,serif;color:var(--gold);letter-spacing:.04em;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:24px}
+.hidden{display:none!important}
+.offscreen{position:absolute!important;left:-10000px;top:0;width:900px}
+.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-top:2px solid var(--gold);padding:20px;border-radius:4px}
+button{font:inherit;cursor:pointer;border:1px solid var(--gold);background:#1e2328;color:var(--gold2);padding:10px 16px;border-radius:3px;font-weight:600;transition:.15s}
+button:hover:not(:disabled){background:#2a3038;box-shadow:0 0 12px rgba(200,170,110,.35)}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:linear-gradient(180deg,#0ac8b9,#0397ab);border-color:var(--teal);color:#010a13}
+button.primary:hover:not(:disabled){background:linear-gradient(180deg,#2ee6d6,#06a9bf);box-shadow:0 0 16px rgba(10,200,185,.5)}
+button.small{padding:5px 10px;font-size:14px}
+button.ghost{border-color:var(--line);background:transparent}
+input,select{font:inherit;background:#010a13;color:var(--gold2);border:1px solid var(--line);border-radius:3px;padding:9px 11px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--gold)}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+.title{text-align:center;margin:10px 0 26px}
+.title h1{font-size:clamp(28px,5vw,46px);font-weight:800}
+.title p{color:var(--muted);margin:8px 0 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.row{display:flex;gap:10px;align-items:center}
+.field{margin-bottom:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;min-height:36px}
+.chip{background:#1e2328;border:1px solid var(--gold);border-radius:20px;padding:5px 8px 5px 14px;display:flex;align-items:center;gap:6px}
+.chip button{border:none;background:none;padding:0 6px;color:var(--muted)}
+.status{margin-top:12px;font-size:15px;min-height:22px}
+.status.ok{color:var(--teal)} .status.err{color:var(--red)}
+.warn{background:rgba(232,64,87,.12);border:1px solid var(--red);padding:12px 14px;border-radius:3px;margin-bottom:20px;font-size:15px;line-height:1.5}
+.warn code{background:#000;padding:1px 6px;border-radius:3px}
+.cta{display:flex;justify-content:center;margin-top:22px}
+.cta button{font-size:18px;padding:14px 34px;font-family:Cinzel,serif}
+
+/* jeu */
+.game{display:grid;grid-template-columns:1fr 300px;gap:20px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.topbar h2{font-size:24px}
+.stage{position:relative;aspect-ratio:16/9;background:#000;border:1px solid var(--gold);border-radius:3px;overflow:hidden}
+#yt,#yt iframe{position:absolute;inset:0;width:100%;height:100%}
+.cover{position:absolute;inset:0;background:radial-gradient(circle at center,#0f2a4a 0%,#010a13 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s;z-index:2}
+.cover.revealed{opacity:0;pointer-events:none}
+.ring{position:relative;width:170px;height:170px}
+.ring svg{transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Cinzel,serif;font-size:56px;color:var(--gold)}
+.eq{display:flex;gap:5px;height:40px;align-items:flex-end;margin-top:18px}
+.eq span{width:7px;background:var(--teal);border-radius:2px;height:8px}
+.playing .eq span{animation:eq .9s ease-in-out infinite}
+.eq span:nth-child(2){animation-delay:.15s}.eq span:nth-child(3){animation-delay:.3s}.eq span:nth-child(4){animation-delay:.45s}.eq span:nth-child(5){animation-delay:.6s}
+@keyframes eq{0%,100%{height:8px}50%{height:40px}}
+.coverMsg{margin-top:14px;color:var(--muted);font-size:15px;min-height:20px}
+.answer{margin-top:16px;text-align:center;min-height:86px}
+.answer .main{font-family:Cinzel,serif;font-size:clamp(24px,3.4vw,36px);color:var(--gold);font-weight:800}
+.answer .full{color:var(--muted);font-size:14px;margin-top:6px}
+.cat{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:7px 16px;border:1px solid var(--teal);border-radius:20px;color:var(--teal);font-weight:700;letter-spacing:.05em;text-transform:uppercase;font-size:15px;background:rgba(10,200,185,.08)}
+.cat:empty{display:none}
+.catFix{margin-top:10px;font-size:13px;color:var(--muted)}
+.catFix select{width:auto;padding:4px 8px;font-size:13px;margin-left:6px}
+.nocat .cat,.nocat .catFix,.nocat .recap em{display:none!important}
+#catToggle.off{opacity:.55}
+.recap em{color:var(--teal);font-style:normal;font-size:12px;margin-left:6px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:8px}
+.controls .vol{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px}
+.controls .vol input{width:110px;padding:0;accent-color:var(--gold)}
+.keys{text-align:center;color:var(--muted);font-size:12.5px;margin-top:12px}
+.keys b{color:var(--gold2);border:1px solid var(--line);padding:1px 6px;border-radius:3px;font-weight:500}
+.board h3{font-size:18px;margin-bottom:12px}
+.pl{display:flex;align-items:center;gap:8px;padding:9px 6px;border-bottom:1px solid var(--line)}
+.pl .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl .score{font-family:Cinzel,serif;font-size:22px;color:var(--gold);min-width:34px;text-align:right}
+.pl.lead .name::before{content:"♛ ";color:var(--gold)}
+.pl button{padding:3px 9px;font-size:14px}
+.pl .plus{border-color:var(--teal);color:var(--teal)}
+.addp{display:flex;gap:6px;margin-top:12px}
+.addp input{padding:6px 8px;font-size:14px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e2328;border:1px solid var(--gold);padding:12px 18px;border-radius:3px;z-index:20;max-width:90vw}
+
+/* fin */
+.podium{display:flex;justify-content:center;align-items:flex-end;gap:16px;margin:30px 0}
+.step{text-align:center;width:170px}
+.step .block{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--gold);border-bottom:none;display:flex;align-items:center;justify-content:center;font-family:Cinzel,serif;font-size:40px;color:var(--gold)}
+.step .who{font-weight:700;font-size:18px;margin-bottom:4px}
+.step .pts{color:var(--muted);margin-bottom:8px}
+.recap{list-style:none;padding:0;margin:0;columns:2;column-gap:30px}
+.recap li{padding:6px 0;border-bottom:1px solid var(--line);break-inside:avoid;font-size:15px}
+.recap a{color:var(--gold2);text-decoration:none}.recap a:hover{color:var(--teal)}
+.recap span{color:var(--muted);display:inline-block;width:34px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px}
+.modal .panel{max-width:560px;line-height:1.55}
+.modal code{background:#000;padding:2px 6px;border-radius:3px}
+@media(max-width:860px){.grid2,.game{grid-template-columns:1fr}.recap{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ÉCRAN RÉGLAGES -->
+<section id="setup">
+  <div class="title"><h1>Blind Test · League of Legends</h1><p>Thèmes des champions & écrans de connexion</p></div>
+  <div id="fileWarn" class="warn hidden">
+    ⚠ Tu as ouvert ce fichier en double-cliquant dessus : YouTube va sûrement refuser de lire les vidéos (« erreur 153 »).<br>
+    Lance plutôt <b>lancer-blindtest.bat</b> (Windows), ou sur Mac/Linux tape dans un terminal, depuis ce dossier :
+    <code>python3 -m http.server 8765</code> puis ouvre <code>http://localhost:8765/blindtest-lol.html</code>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <h3 style="margin-bottom:16px">Joueurs</h3>
+      <div class="row">
+        <input id="pName" placeholder="Pseudo du joueur ou nom d'équipe" maxlength="24">
+        <button id="pAdd">Ajouter</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="panel">
+      <h3 style="margin-bottom:16px">Partie</h3>
+      <div class="field">
+        <label>Playlist YouTube (lien ou identifiant)</label>
+        <input id="plInput" value="https://youtube.com/playlist?list=PLbAFXJC0J5GZHUtGea_zQR0OyD3UBuw9s">
+      </div>
+      <div class="row" style="gap:14px">
+        <div class="field" style="flex:1"><label>Manches</label><input id="rounds" type="number" min="1" max="999" value="20"></div>
+        <div class="field" style="flex:1"><label>Durée de l'extrait</label>
+          <select id="clip"><option value="5">5 s</option><option value="10">10 s</option><option value="15" selected>15 s</option><option value="20">20 s</option><option value="30">30 s</option></select></div>
+        <div class="field" style="flex:1.3"><label>Début de l'extrait</label>
+          <select id="startMode"><option value="random" selected>Au hasard dans le morceau</option><option value="start">Début du morceau</option></select></div>
+      </div>
+      <div class="field"><label>Même musique plusieurs fois dans la partie</label>
+        <select id="repeat"><option value="no" selected>Non, chaque musique ne sort qu'une fois</option><option value="yes">Oui, tirage totalement au hasard à chaque manche</option></select></div>
+      <div class="field"><label>Afficher les catégories</label>
+        <select id="showCat"><option value="yes" selected>Oui (champion, skin/skinline, événement, autre)</option><option value="no">Non</option></select></div>
+      <div class="row" style="gap:14px;align-items:flex-end">
+        <button id="loadBtn" style="flex:1">Charger la playlist</button>
+        <div style="width:150px"><label>Morceaux trouvés</label><input id="total" type="number" min="1" max="5000" title="Tu peux corriger ce nombre si YouTube n'a pas tout détecté"></div>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+  <div class="cta"><button class="primary" id="startBtn" disabled>Lancer la partie</button></div>
+</section>
+
+<!-- ÉCRAN JEU -->
+<section id="game" class="offscreen">
+  <div class="topbar">
+    <h2 id="roundLbl">Manche 1</h2>
+    <button class="ghost small" id="quitBtn">Terminer la partie</button>
+  </div>
+  <div class="game">
+    <div>
+      <div class="stage">
+        <div id="yt"></div>
+        <div class="cover" id="cover">
+          <div class="ring">
+            <svg width="170" height="170"><circle cx="85" cy="85" r="76" stroke="#1e2d45" stroke-width="8" fill="none"/><circle id="arc" cx="85" cy="85" r="76" stroke="#c8aa6e" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="477.5" stroke-dashoffset="0"/></svg>
+            <div class="num" id="count">?</div>
+          </div>
+          <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="cat" id="catBadge"></div>
+          <div class="coverMsg" id="coverMsg"></div>
+        </div>
+      </div>
+      <div class="answer" id="answer"></div>
+      <div class="controls">
+        <button id="replayBtn" disabled>⟲ Réécouter</button>
+        <button id="moreBtn" disabled>+5 s</button>
+        <button id="revealBtn" disabled>👁 Révéler</button>
+        <button id="nextBtn" disabled>Manche suivante ⏭</button>
+        <button id="catToggle" title="Afficher / masquer les catégories (touche C)">🏷 Catégories : oui</button>
+        <div class="vol">🔊 <input type="range" id="vol" min="0" max="100" value="80"></div>
+      </div>
+      <div class="keys"><b>Espace</b> réécouter l'extrait · <b>R</b> révéler · <b>N</b> manche suivante · <b>+</b> 5 secondes de plus · <b>C</b> catégories</div>
+    </div>
+    <aside class="panel board">
+      <h3>Scores</h3>
+      <div id="board"></div>
+      <button class="small" id="allPlus" style="width:100%;margin-top:12px;border-color:var(--teal);color:var(--teal)">+1 à tout le monde</button>
+      <div class="addp"><input id="pName2" placeholder="Ajouter un joueur" maxlength="24"><button class="small" id="pAdd2">+</button></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ÉCRAN FIN -->
+<section id="end" class="hidden">
+  <div class="title"><h1>Victoire !</h1><p id="endSub"></p></div>
+  <div class="podium" id="podium"></div>
+  <div class="panel"><h3 style="margin-bottom:12px">Les morceaux de la partie</h3><ul class="recap" id="recap"></ul></div>
+  <div class="cta"><button class="primary" id="againBtn">Nouvelle partie</button></div>
+</section>
+</div>
+
+<div class="modal hidden" id="modal"><div class="panel">
+  <h3 style="margin-bottom:12px">YouTube refuse la lecture (erreur 153)</h3>
+  <p>YouTube ne lit pas les vidéos intégrées dans une page ouverte directement depuis un fichier. Il faut passer par une adresse <code>http://localhost</code> :</p>
+  <p><b>Windows :</b> double-clique sur <b>lancer-blindtest.bat</b> (placé dans le même dossier que cette page).<br>
+  <b>Mac / Linux :</b> dans un terminal ouvert dans ce dossier : <code>python3 -m http.server 8765</code>, puis va sur <code>http://localhost:8765/blindtest-lol.html</code></p>
+  <div style="text-align:right;margin-top:14px"><button id="modalClose">OK</button></div>
+</div></div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const PS = {UNSTARTED:-1, ENDED:0, PLAYING:1, PAUSED:2, BUFFERING:3, CUED:5};
+const ARC = 477.5;
+
+const S = {
+  players: [], ids: [], order: [], ptr: 0, round: 0, rounds: 20,
+  clipBase: 15, clipLen: 15, startMode: 'random', clipStart: 0,
+  phase: 'idle', cur: null, history: [], vol: 80, errStreak: 0
+};
+let player = null, apiReady = false, apiWaiters = [], pollTimer = null, loadedList = null;
+
+/* ---------- utilitaires ---------- */
+function save(){ try{ localStorage.setItem('bt-lol-players', JSON.stringify(S.players.map(p=>p.name))); }catch(e){} }
+function restore(){ try{ const a = JSON.parse(localStorage.getItem('bt-lol-players')||'[]'); a.forEach(n=>S.players.push({name:n,score:0})); }catch(e){} }
+function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.add('hidden'), ms); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function parseList(v){ v=v.trim(); const m=v.match(/[?&]list=([\w-]+)/); if(m) return m[1]; return /^[\w-]{10,}$/.test(v) ? v : null; }
+function cleanTitle(t){
+  if(!t) return '—';
+  const parts = t.split(/\s+[|–—-]\s+|\s*\|\s*/).map(s=>s.trim()).filter(Boolean);
+  const noise = /^(league of legends|lol|riot games|official.*|champion theme|theme|login screen|music video|official music video|.*league of legends.*)$/i;
+  const keep = parts.filter(p=>!noise.test(p));
+  return keep[0] || parts[0] || t;
+}
+
+/* ---------- joueurs ---------- */
+function addPlayer(inputSel){
+  const i=$(inputSel), n=i.value.trim(); if(!n) return;
+  if(S.players.some(p=>p.name.toLowerCase()===n.toLowerCase())){ toast('Ce nom est déjà pris'); return; }
+  S.players.push({name:n, score:0}); i.value=''; save(); renderChips(); renderBoard();
+}
+function renderChips(){
+  $('#chips').innerHTML = S.players.length ? S.players.map((p,k)=>`<span class="chip">${esc(p.name)}<button data-k="${k}" title="Retirer">✕</button></span>`).join('')
+    : '<span style="color:var(--muted);font-size:14px">Ajoute les joueurs (ou des équipes). Tu pourras aussi jouer sans compter les points.</span>';
+}
+$('#chips').addEventListener('click', e=>{ const k=e.target.dataset.k; if(k!==undefined){ S.players.splice(+k,1); save(); renderChips(); } });
+$('#pAdd').onclick = ()=>addPlayer('#pName');
+$('#pName').onkeydown = e=>{ if(e.key==='Enter') addPlayer('#pName'); };
+$('#pAdd2').onclick = ()=>addPlayer('#pName2');
+$('#pName2').onkeydown = e=>{ if(e.key==='Enter') addPlayer('#pName2'); };
+
+function renderBoard(){
+  const max = Math.max(0, ...S.players.map(p=>p.score));
+  $('#board').innerHTML = S.players.length ? S.players.map((p,k)=>`
+    <div class="pl ${max>0&&p.score===max?'lead':''}">
+      <span class="name" title="${esc(p.name)}">${esc(p.name)}</span>
+      <button class="minus" data-k="${k}" data-d="-1">−</button>
+      <button class="plus" data-k="${k}" data-d="1">+1</button>
+      <span class="score">${p.score}</span>
+    </div>`).join('') : '<p style="color:var(--muted);font-size:14px">Aucun joueur.</p>';
+}
+$('#allPlus').onclick = e=>{
+  if(!S.players.length) return;
+  S.players.forEach(p=>p.score++); renderBoard(); e.currentTarget.blur();
+  toast('+1 point pour tout le monde !', 1500);
+};
+$('#board').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  S.players[+b.dataset.k].score += +b.dataset.d; renderBoard();
+});
+
+/* ---------- YouTube ---------- */
+window.onYouTubeIframeAPIReady = ()=>{ apiReady=true; apiWaiters.splice(0).forEach(f=>f()); };
+function whenApi(f){ apiReady ? f() : apiWaiters.push(f); }
+
+function setStatus(msg, cls=''){ const s=$('#status'); s.className='status '+cls; s.textContent=msg; }
+
+function loadPlaylist(){
+  const id = parseList($('#plInput').value);
+  if(!id){ setStatus('Lien de playlist invalide (il doit contenir « list=… »).','err'); return; }
+  $('#startBtn').disabled = true; $('#loadBtn').disabled = true;
+  setStatus('Chargement de la playlist…');
+  whenApi(()=>{
+    if(!player){
+      const vars = {listType:'playlist', list:id, controls:0, disablekb:1, rel:0, playsinline:1, iv_load_policy:3, fs:0};
+      if(location.protocol.startsWith('http')) vars.origin = location.origin;
+      player = new YT.Player('yt', {
+        width:'100%', height:'100%', playerVars: vars,
+        events: { onReady: ()=>{ player.setVolume(S.vol); pollPlaylist(id); }, onStateChange: onState, onError: onErr }
+      });
+    } else {
+      player.cuePlaylist({listType:'playlist', list:id});
+      pollPlaylist(id);
+    }
+  });
+}
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+function getPl(){ try{ return player.getPlaylist() || []; }catch(e){ return []; } }
+
+/* Le lecteur YouTube ne donne la playlist que par tranches de 200 :
+   on la recharge à partir de l'index 200, 400… pour découvrir la suite. */
+async function waitNewIds(seen, ms){
+  const end = Date.now() + ms;
+  while(Date.now() < end){
+    await sleep(300);
+    const fresh = getPl().filter(v=>!seen.has(v));
+    if(fresh.length) return fresh;
+  }
+  return [];
+}
+async function pollPlaylist(id){
+  let pl = [];
+  for(let k=0; k<50 && !pl.length; k++){ await sleep(300); pl = getPl(); }
+  if(!pl.length){
+    $('#loadBtn').disabled = false;
+    setStatus('Impossible de lire la playlist. Vérifie qu\'elle est publique ou « non répertoriée », et que la page est lancée via le lanceur (pas en double-clic).', 'err');
+    return;
+  }
+  const seen = new Set(pl);
+  for(let k=0; k<25 && seen.size >= 200; k++){
+    setStatus(`${seen.size} morceaux trouvés, recherche de la suite…`);
+    player.cuePlaylist({listType:'playlist', list:id, index:seen.size});
+    const fresh = await waitNewIds(seen, 6000);
+    if(!fresh.length) break;
+    fresh.forEach(v=>seen.add(v));
+  }
+  S.ids = [...seen]; loadedList = id;
+  $('#total').value = S.ids.length;
+  setStatus(`✓ ${S.ids.length} morceaux trouvés dans la playlist.`, 'ok');
+  $('#startBtn').disabled = false; $('#loadBtn').disabled = false;
+}
+$('#loadBtn').onclick = loadPlaylist;
+
+function onErr(e){
+  const c = e.data;
+  if(c===153 || c===152){ $('#modal').classList.remove('hidden'); return; }
+  if(S.phase==='loading' || S.phase==='playing'){
+    S.errStreak++;
+    if(S.errStreak > 12){ toast('Trop de vidéos indisponibles d\'affilée, partie arrêtée.'); endGame(); return; }
+    toast('Ce morceau ne peut pas être lu ici, on passe au suivant…', 2200);
+    S.round--; setTimeout(startRound, 600);
+  }
+}
+
+function onState(e){
+  if(e.data===PS.PLAYING && S.phase==='loading'){
+    S.errStreak = 0;
+    // Filet de sécurité : on vérifie la vidéo réellement lancée (encore en sourdine)
+    let vid = ''; try{ vid = (player.getVideoData()||{}).video_id || ''; }catch(err){}
+    if(!S.repeat && vid && S.playedIds.has(vid)){
+      clearTimeout(S.loadTimer); S.round--; startRound(); return;
+    }
+    if(vid) S.playedIds.add(vid);
+    let ttl = ''; try{ ttl = (player.getVideoData()||{}).title || ''; }catch(err){}
+    S.cur.cat = categoryOf(vid, ttl);
+    $('#catBadge').textContent = '🏷 ' + S.cur.cat;
+    const d = player.getDuration() || 0;
+    let start = 0;
+    if(S.startMode==='random' && d > S.clipLen + 20){
+      const lo = Math.max(8, d*0.12), hi = Math.max(lo, d*0.62 - S.clipLen);
+      start = lo + Math.random()*(hi-lo);
+    }
+    S.clipStart = start;
+    if(start>0) player.seekTo(start, true);
+    S.phase = 'playing';
+    setTimeout(()=>{ if(S.phase==='playing'){ player.unMute(); player.setVolume(S.vol); } }, start>0 ? 450 : 0);
+    updateUI();
+  }
+  if(e.data===PS.ENDED && S.phase==='playing'){ S.phase='paused'; updateUI(); }
+}
+
+function tick(){
+  if(!player || S.phase!=='playing') return;
+  const el = (player.getCurrentTime()||0) - S.clipStart;
+  const rem = Math.max(0, S.clipLen - el);
+  $('#count').textContent = Math.ceil(rem);
+  $('#arc').style.strokeDashoffset = ARC * (1 - rem/S.clipLen);
+  if(rem<=0){ player.pauseVideo(); S.phase='paused'; updateUI(); }
+}
+
+/* ---------- déroulé ---------- */
+function startGame(){
+  if(!S.ids.length){ toast('Charge d\'abord la playlist.'); return; }
+  const want = parseList($('#plInput').value);
+  if(want && want!==loadedList){ toast('Le lien a changé : clique d\'abord sur « Charger la playlist ».'); return; }
+  S.total = Math.max(1, +$('#total').value || S.ids.length);
+  S.repeat = $('#repeat').value === 'yes';
+  S.rounds = Math.max(1, +$('#rounds').value || 20);
+  if(!S.repeat) S.rounds = Math.min(S.total, S.rounds);
+  S.clipBase = +$('#clip').value; S.startMode = $('#startMode').value;
+  S.order = shuffle([...Array(S.total).keys()]); S.ptr = 0; S.round = 0; S.history = []; S.errStreak = 0; S.playedIds = new Set();
+  setShowCat($('#showCat').value === 'yes');
+  S.players.forEach(p=>p.score=0);
+  $('#setup').classList.add('hidden'); $('#end').classList.add('hidden'); $('#game').classList.remove('offscreen');
+  renderBoard(); startRound();
+  clearInterval(pollTimer); pollTimer = setInterval(tick, 100);
+}
+
+function startRound(){
+  if(!S.repeat && S.ptr >= S.order.length){ toast('Plus de morceaux disponibles dans la playlist.'); endGame(); return; }
+  S.round++;
+  const idx = S.repeat ? Math.floor(Math.random()*S.total) : S.order[S.ptr++];
+  S.cur = {idx, id:null, title:null};
+  S.clipLen = S.clipBase;
+  S.phase = 'loading';
+  $('#cover').classList.remove('revealed');
+  $('#answer').innerHTML = '';
+  $('#catBadge').textContent = '';
+  $('#count').textContent = S.clipLen; $('#arc').style.strokeDashoffset = 0;
+  player.mute();
+  // Lecture par identifiant de vidéo quand on le connaît (aucune ambiguïté possible) ;
+  // sinon par position dans la playlist (YouTube peut alors se tromper au-delà du 200e).
+  if(S.ids[idx]) player.loadVideoById(S.ids[idx]);
+  else player.loadPlaylist({listType:'playlist', list:loadedList, index:idx});
+  const myRound = S.round;
+  clearTimeout(S.loadTimer);
+  S.loadTimer = setTimeout(()=>{
+    if(S.phase==='loading' && S.round===myRound){ toast('Ce morceau ne se charge pas, on passe au suivant…', 2200); S.round--; startRound(); }
+  }, 12000);
+  updateUI();
+}
+
+function play(){
+  if(S.phase==='paused'){ player.seekTo(S.clipStart, true); player.unMute(); player.playVideo(); S.phase='playing'; updateUI(); }
+}
+function more(){
+  if(S.phase==='paused' || S.phase==='playing'){ S.clipLen += 5; if(S.phase==='paused'){ player.unMute(); player.playVideo(); S.phase='playing'; } updateUI(); }
+}
+function reveal(){
+  if(!['playing','paused'].includes(S.phase)) return;
+  const d = player.getVideoData ? player.getVideoData() : {};
+  S.cur.title = (d && d.title) || '(titre introuvable)';
+  S.cur.id = (d && d.video_id) || '';
+  S.history.push({...S.cur});
+  S.phase = 'revealed';
+  $('#cover').classList.add('revealed');
+  if(!S.cur.cat) S.cur.cat = categoryOf(S.cur.id, S.cur.title);
+  const opts = CATS.map(c=>`<option${c===S.cur.cat?' selected':''}>${c}</option>`).join('');
+  $('#answer').innerHTML = `<div class="main">${esc(cleanTitle(S.cur.title))}</div><div class="full">${esc(S.cur.title)}</div>
+    <div class="catFix">Catégorie :<select id="catSel">${opts}</select> <span style="opacity:.7">(corrige-la si besoin, elle sera retenue)</span></div>`;
+  const entry = S.history[S.history.length-1];
+  $('#catSel').onchange = e=>{ entry.cat = S.cur.cat = e.target.value; saveCatOverride(entry.id, entry.cat); e.target.blur(); };
+  player.unMute(); player.playVideo();
+  updateUI();
+}
+function next(){
+  if(S.phase==='loading') return;
+  if(S.phase!=='revealed'){ reveal(); return; }
+  if(S.round >= S.rounds){ endGame(); return; }
+  startRound();
+}
+
+function updateUI(){
+  const p = S.phase;
+  $('#roundLbl').textContent = `Manche ${S.round} / ${S.rounds}`;
+  $('#cover').classList.toggle('playing', p==='playing');
+  $('#coverMsg').textContent = p==='loading' ? 'Chargement…' : p==='paused' ? 'Temps écoulé ! À vos réponses…' : p==='playing' ? 'Écoutez bien…' : '';
+  if(p==='paused'){ $('#count').textContent='0'; $('#arc').style.strokeDashoffset = ARC; }
+  $('#replayBtn').disabled = !(p==='paused' || p==='playing');
+  $('#moreBtn').disabled = !(p==='paused' || p==='playing');
+  $('#revealBtn').disabled = !(p==='paused' || p==='playing');
+  $('#nextBtn').disabled = p!=='revealed';
+  $('#nextBtn').textContent = (S.round>=S.rounds) ? 'Voir le classement 🏆' : 'Manche suivante ⏭';
+}
+
+function endGame(){
+  S.phase = 'idle'; clearInterval(pollTimer);
+  try{ player.pauseVideo(); }catch(e){}
+  $('#game').classList.add('offscreen'); $('#end').classList.remove('hidden');
+  const r = [...S.players].sort((a,b)=>b.score-a.score);
+  $('#endSub').textContent = r.length ? `${r[0].name} remporte le blind test avec ${r[0].score} point${r[0].score>1?'s':''} !` : `${S.history.length} morceaux joués`;
+  const slots = [[1,'🥈',110],[0,'🥇',150],[2,'🥉',80]];
+  $('#podium').innerHTML = r.length ? slots.filter(([i])=>r[i]).map(([i,m,h])=>`
+    <div class="step"><div class="who">${esc(r[i].name)}</div><div class="pts">${r[i].score} pt${r[i].score>1?'s':''}</div><div class="block" style="height:${h}px">${m}</div></div>`).join('')
+    + (r.length>3 ? `<div class="step" style="align-self:center;color:var(--muted);font-size:14px;text-align:left">${r.slice(3).map((p,k)=>`${k+4}. ${esc(p.name)} — ${p.score}`).join('<br>')}</div>` : '') : '';
+  $('#recap').innerHTML = S.history.map((h,k)=>`<li><span>${k+1}.</span>${h.id ? `<a href="https://www.youtube.com/watch?v=${esc(h.id)}" target="_blank" rel="noopener">${esc(cleanTitle(h.title))}</a>` : esc(cleanTitle(h.title))}${h.cat?`<em>${esc(h.cat)}</em>`:''}</li>`).join('') || '<li>Aucun morceau révélé.</li>';
+}
+
+$('#startBtn').onclick = startGame;
+$('#replayBtn').onclick = ()=>{ if(S.phase==='playing'||S.phase==='paused'){ S.phase='paused'; play(); } };
+$('#moreBtn').onclick = more;
+$('#revealBtn').onclick = reveal;
+$('#nextBtn').onclick = next;
+$('#quitBtn').onclick = ()=>{ if(S.phase==='playing'||S.phase==='paused') reveal(); endGame(); };
+$('#againBtn').onclick = ()=>{ $('#end').classList.add('hidden'); $('#setup').classList.remove('hidden'); };
+$('#modalClose').onclick = ()=>$('#modal').classList.add('hidden');
+$('#vol').oninput = e=>{ S.vol = +e.target.value; if(player && S.phase!=='loading') player.setVolume(S.vol); };
+
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT') return;
+  if($('#game').classList.contains('offscreen')) return;
+  if(e.code==='Space'){ e.preventDefault(); if(S.phase==='playing'||S.phase==='paused'){ S.phase='paused'; play(); } }
+  else if(e.key==='r'||e.key==='R') reveal();
+  else if(e.key==='n'||e.key==='N'||e.key==='ArrowRight') next();
+  else if(e.key==='+') more();
+  else if(e.key==='c'||e.key==='C') setShowCat(!S.showCat);
+});
+
+/* ---------- catégories ---------- */
+const CATS = ['Champion','Skin / Skinline','Événement','Autre'];
+const CHAMPS = ["Aatrox","Ahri","Akali","Akshan","Alistar","Ambessa","Amumu","Anivia","Annie","Aphelios","Ashe","Aurelion Sol","Aurora","Azir","Bard","Bel'Veth","Blitzcrank","Brand","Braum","Briar","Caitlyn","Camille","Cassiopeia","Cho'Gath","Corki","Darius","Diana","Dr. Mundo","Mundo","Draven","Ekko","Elise","Evelynn","Ezreal","Fiddlesticks","Fiora","Fizz","Galio","Gangplank","Garen","Gnar","Gragas","Graves","Gwen","Hecarim","Heimerdinger","Hwei","Illaoi","Irelia","Ivern","Janna","Jarvan IV","Jarvan","Jax","Jayce","Jhin","Jinx","Kai'Sa","Kalista","Karma","Karthus","Kassadin","Katarina","Kayle","Kayn","Kennen","Kha'Zix","Kindred","Kled","Kog'Maw","K'Sante","LeBlanc","Lee Sin","Leona","Lillia","Lissandra","Lucian","Lulu","Lux","Malphite","Malzahar","Maokai","Master Yi","Mel","Milio","Miss Fortune","Mordekaiser","Morgana","Naafiri","Nami","Nasus","Nautilus","Neeko","Nidalee","Nilah","Nocturne","Nunu","Olaf","Orianna","Ornn","Pantheon","Poppy","Pyke","Qiyana","Quinn","Rakan","Rammus","Rek'Sai","Rell","Renata","Renekton","Rengar","Riven","Rumble","Ryze","Samira","Sejuani","Senna","Seraphine","Sett","Shaco","Shen","Shyvana","Singed","Sion","Sivir","Skarner","Smolder","Sona","Soraka","Swain","Sylas","Syndra","Tahm Kench","Taliyah","Talon","Taric","Teemo","Thresh","Tristana","Trundle","Tryndamere","Twisted Fate","Twitch","Udyr","Urgot","Varus","Vayne","Veigar","Vel'Koz","Vex","Vi","Viego","Viktor","Vladimir","Volibear","Warwick","Wukong","Xayah","Xerath","Xin Zhao","Yasuo","Yone","Yorick","Yunara","Yuumi","Zaahen","Zac","Zed","Zeri","Ziggs","Zilean","Zoe","Zyra"];
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/['’.]/g,'');
+const CHAMP_RE = new RegExp('\\b(' + CHAMPS.map(c=>norm(c).replace(/[^a-z0-9 ]/g,'')).join('|') + ')\\b');
+const SKIN_RE = /\b(skins?|skinline|k\/?da|pentakill|true damage|heartsteel|illbilities|star guardian|gardiennes? des etoiles|project|pulsefire|odyssey|arcade|battle boss|spirit blossom|fleur spirituelle|high noon|blood moon|lune de sang|snow moon|cosmic|dark star|space groove|coven|bewitching|battle academia|anima squad|soul fighter|mecha kingdoms|faerie court|empyrean|crystalis|porcelain|winterblessed|elderwood|nightbringer|dawnbringer|psyops|dragonmancer|inkshadow|storm dragon|debonair|cafe cuties|infernal|arcana|prestige|immortal journey|primordian|eclipse|broken covenant|headhunter|frostblade|pool party|fright night|bloodstone|lunar|spirit guard|ocean song|stargazer|withered rose|rose fanee)\b/;
+// Événement = thème de région, esport, ou événement du jeu
+const EVENT_RE = /\b(demacia|noxus|ionia|freljord|piltover|zaun|shurima|targon|bilgewater|shadow isles|iles obscures|ixtal|bandle|void|neant|runeterra|region|worlds|msi|mid-season|championship|all-?stars?|anthem|lck|lec|lcs|lpl|esports?|event|evenement|anniversary|anniversaire|ruination|sentinels|sentinelles|snowdown|arcane|season|saison|preseason|pre-season|aram|arena|swarm|nexus blitz|urf|tft)\b/;
+const RULES = [
+  ['Skin / Skinline', SKIN_RE],                                    // skin, skinline, groupe virtuel
+  ['Champion',        /\b(champion theme|theme de champion)\b/],   // thème du champion de base
+  ['Événement',       EVENT_RE],
+  ['Champion',        CHAMP_RE],                                   // ex. « Kog'Maw Login Screen »
+  ['Événement',       /\b(login|connexion|patch|update)\b/]         // écran de connexion sans champion ni skin
+];
+// anciennes catégories (versions précédentes) ramenées aux 4 nouvelles
+const OLD_CATS = {'Groupe virtuel':'Skin / Skinline','Esport':'Événement','Arcane / Série':'Événement'};
+let catOverrides = {};
+try{ catOverrides = JSON.parse(localStorage.getItem('bt-lol-cat')||'{}'); }catch(e){}
+function saveCatOverride(id, cat){ if(!id) return; catOverrides[id] = cat; try{ localStorage.setItem('bt-lol-cat', JSON.stringify(catOverrides)); }catch(e){} }
+function categoryOf(id, title){
+  if(id && catOverrides[id]){ const c = OLD_CATS[catOverrides[id]] || catOverrides[id]; if(CATS.includes(c)) return c; }
+  const t = norm(title||'');
+  if(!t) return 'Autre';
+  for(const [cat, re] of RULES) if(re.test(t)) return cat;
+  return 'Autre';
+}
+
+function setShowCat(on){
+  S.showCat = on;
+  document.body.classList.toggle('nocat', !on);
+  const b = $('#catToggle'); b.textContent = '🏷 Catégories : ' + (on ? 'oui' : 'non'); b.classList.toggle('off', !on);
+  $('#showCat').value = on ? 'yes' : 'no';
+  try{ localStorage.setItem('bt-lol-showcat', on ? '1' : '0'); }catch(e){}
+}
+$('#catToggle').onclick = e=>{ setShowCat(!S.showCat); e.currentTarget.blur(); };
+$('#showCat').onchange = e=>setShowCat(e.target.value === 'yes');
+
+/* ---------- init ---------- */
+if(location.protocol==='file:') $('#fileWarn').classList.remove('hidden');
+restore(); renderChips(); renderBoard();
+{ let v = null; try{ v = localStorage.getItem('bt-lol-showcat'); }catch(e){} setShowCat(v !== '0'); }
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
