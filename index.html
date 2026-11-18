@@ -166,6 +166,10 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-tra
 .online .game{grid-template-columns:1fr 360px}
 .online .pl button{padding:3px 7px}
 @media(max-width:860px){.online .game{grid-template-columns:1fr}}
+
+.hostAns{display:none;margin-top:16px;padding:14px 16px}
+.online.hostplays .hostAns{display:block}
+.hostAnsLbl{font-size:13px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
 </style>
 </head>
 <body>
@@ -257,6 +261,7 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-tra
         <div class="field" style="flex:1"><label>Essais par manche</label>
           <select id="attempts"><option value="0">Illimités</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option></select></div>
       </div>
+      <div class="field netOnly"><label>Ton pseudo (pour jouer toi aussi)</label><input id="hostName" maxlength="20" placeholder="Laisse vide si tu ne joues pas"></div>
       <p class="note netOnly" style="margin:-6px 0 14px">Points : 20 si la 1re réponse est bonne, 15 si la bonne réponse vient après une erreur, 0 si la musique n'est pas trouvée.</p>
       <div class="row" style="gap:14px;align-items:flex-end">
         <button id="loadBtn" style="flex:1">Charger la playlist</button>
@@ -301,6 +306,11 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-tra
         <button id="nextBtn" disabled>Manche suivante ⏭</button>
         <button id="catToggle" title="Afficher / masquer les catégories (touche C)">🏷 Catégories : oui</button>
         <div class="vol">🔊 <input type="range" id="vol" min="0" max="100" value="80"></div>
+      </div>
+      <div class="panel hostAns">
+        <div class="hostAnsLbl">Ta réponse</div>
+        <div class="ansRow"><div class="combo"><input id="hInput" placeholder="Réponses fermées" autocomplete="off" autocorrect="off" spellcheck="false" disabled><div class="sugg hidden" id="hSugg"></div></div><button class="primary" id="hSend" disabled>Valider</button></div>
+        <div class="fb" id="hFb"></div><div class="tried" id="hTried"></div>
       </div>
       <div class="keys"><b>Espace</b> réécouter l'extrait · <b>R</b> révéler · <b>N</b> manche suivante · <b>+</b> 5 secondes de plus · <b>C</b> catégories</div>
     </div>
@@ -2877,7 +2887,7 @@ function startGame(){
   S.clipBase = +$('#clip').value; S.startMode = $('#startMode').value;
   S.order = shuffle([...Array(S.total).keys()]); S.ptr = 0; S.round = 0; S.history = []; S.errStreak = 0; S.playedIds = new Set();
   setShowCat($('#showCat').value === 'yes');
-  if(!NET.online) S.players = S.players.filter(p=>!p.remote);
+  if(!NET.online) S.players = S.players.filter(p=>!p.remote && !p.isHost);
   S.players.forEach(p=>p.score=0); S.ans = {};
   $('#lobby').classList.add('hidden');
   $('#setup').classList.add('hidden'); $('#end').classList.add('hidden'); $('#game').classList.remove('offscreen');
@@ -2954,6 +2964,7 @@ function updateUI(){
   $('#revealBtn').disabled = !(p==='paused' || p==='playing');
   $('#nextBtn').disabled = p!=='revealed';
   $('#nextBtn').textContent = (S.round>=S.rounds) ? 'Voir le classement 🏆' : 'Manche suivante ⏭';
+  if(NET.online) hostAnsUpdate();
 }
 
 function endGame(){
@@ -3103,6 +3114,7 @@ function openLobby(){
   if(!S.ids.length){ toast('Charge d\'abord la playlist.'); return; }
   const want = parseList($('#plInput').value);
   if(want && want!==loadedList){ toast('Le lien a changé : clique d\'abord sur « Charger la playlist ».'); return; }
+  syncHostPlayer();
   $('#setup').classList.add('hidden'); $('#end').classList.add('hidden'); $('#lobby').classList.remove('hidden');
   if(!NET.peer || NET.peer.destroyed) startHostPeer(); else { renderInvite(); }
   renderLobby();
@@ -3140,9 +3152,9 @@ function renderInvite(){
 }
 $('#lCopy').onclick = async ()=>{ try{ await navigator.clipboard.writeText($('#lLink').value); toast('Lien copié !', 1500); }catch(e){ $('#lLink').select(); } };
 function renderLobby(){
-  const rem = S.players.filter(p=>p.remote), loc = S.players.filter(p=>!p.remote);
+  const rem = S.players.filter(p=>p.remote), loc = S.players.filter(p=>!p.remote && !p.isHost);
   $('#lCount').textContent = `(${rem.filter(p=>p.online).length})`;
-  $('#lPlayers').innerHTML = (rem.length ? rem.map(p=>`<div class="lp"><span class="dot ${p.online?'':'off'}"></span>${esc(p.name)}${p.online?'':' <span style="color:var(--muted);font-size:13px">(déconnecté)</span>'}</div>`).join('')
+  $('#lPlayers').innerHTML = (H.name ? `<div class="lp"><span class="dot"></span>👑 ${esc(H.name)} <span style="color:var(--muted);font-size:13px">(toi, l'hôte)</span></div>` : '') + (rem.length ? rem.map(p=>`<div class="lp"><span class="dot ${p.online?'':'off'}"></span>${esc(p.name)}${p.online?'':' <span style="color:var(--muted);font-size:13px">(déconnecté)</span>'}</div>`).join('')
     : '<p class="note">En attente de joueurs…</p>')
     + (loc.length ? `<p class="note">Sur cet écran (points à la main) : ${loc.map(p=>esc(p.name)).join(', ')}</p>` : '');
   updateLobbyStart();
@@ -3171,7 +3183,7 @@ async function fetchTitle(id){
 }
 function buildTitleList(){
   const m = new Map();
-  S.ids.forEach(id=>{ const t = titleCache[id]; if(t){ const c = cleanTitle(t), k = normAns(c); if(k && !m.has(k)) m.set(k, c); } });
+  S.ids.forEach(id=>{ const t = (titleCache[id]||'').trim(); const k = normAns(t); if(k && !m.has(k)) m.set(k, t); });
   NET.titles = [...m.values()].sort((a,b)=>a.localeCompare(b, 'fr', {sensitivity:'base'}));
 }
 async function fetchAllTitles(){
@@ -3240,22 +3252,47 @@ function isCorrect(txt){
   const n = normAns(txt);
   return !!n && !!S.cur && [cleanTitle(S.cur.title), S.cur.title].some(t=>normAns(t)===n);
 }
-function hostAnswer(c, m){
-  const p = S.players.find(x=>x.conn===c); if(!p) return;
+function processAnswer(p, round, title){
   if(S.cur && !S.cur.title){ try{ S.cur.title = (player.getVideoData()||{}).title || ''; }catch(e){} }
-  if(m.round!==S.round || !inRound() || !S.cur || !S.cur.title){ send(c, {t:'fb', round:m.round, closed:true}); return; }
+  if(round!==S.round || !inRound() || !S.cur || !S.cur.title) return {t:'fb', round, closed:true};
   const a = S.ans[p.name] || (S.ans[p.name] = {tries:0, found:false, points:0, wrong:[]});
-  if(a.found || (NET.attempts && a.tries>=NET.attempts)) return;
-  const txt = String(m.title||'').slice(0, 200);
+  if(a.found || (NET.attempts && a.tries>=NET.attempts)) return null;
+  const txt = String(title||'').slice(0, 300);
   a.tries++;
   const ok = isCorrect(txt);
   if(ok){ a.found = true; a.points = a.tries===1 ? 20 : 15; p.score += a.points; }
   else a.wrong.push(txt);
-  send(c, {t:'fb', round:S.round, ok, points:a.points, tries:a.tries, max:NET.attempts, answer:txt, score:p.score});
   renderBoard(); pushScores();
-  const on = onlinePlayers();
-  if(on.length && on.every(x=>{ const y = S.ans[x.name]; return y && (y.found || (NET.attempts && y.tries>=NET.attempts)); }))
-    toast('Tout le monde a répondu ! Tu peux révéler (touche R).', 3500);
+  const everyone = onlinePlayers().concat(S.players.filter(x=>x.isHost));
+  if(everyone.length > 1 && everyone.every(x=>{ const y = S.ans[x.name]; return y && (y.found || (NET.attempts && y.tries>=NET.attempts)); }))
+    toast('Tout le monde a répondu ! Tu peux révéler (bouton Révéler).', 3500);
+  return {t:'fb', round:S.round, ok, points:a.points, tries:a.tries, max:NET.attempts, answer:txt, score:p.score};
+}
+function hostAnswer(c, m){
+  const p = S.players.find(x=>x.conn===c); if(!p) return;
+  const fb = processAnswer(p, m.round, m.title);
+  if(fb) send(c, fb);
+}
+
+/* ---------- l'hôte joue aussi ---------- */
+const H = {name:'', box:null};
+try{ $('#hostName').value = localStorage.getItem('bt-lol-hostname') || ''; }catch(e){}
+function syncHostPlayer(){
+  const n = $('#hostName').value.trim().slice(0, 20);
+  try{ localStorage.setItem('bt-lol-hostname', n); }catch(e){}
+  S.players = S.players.filter(p=>!p.isHost); H.name = '';
+  if(NET.online && n){
+    if(S.players.some(p=>p.name.toLowerCase()===n.toLowerCase())) toast('Ton pseudo est déjà utilisé par un autre joueur : change-le dans les réglages.', 4000);
+    else { S.players.unshift({name:n, score:0, isHost:true}); H.name = n; }
+  }
+  document.body.classList.toggle('hostplays', !!H.name);
+}
+H.box = makeAnswerBox('h', {titles:()=>NET.titles, ans:()=>S.ans[H.name], round:()=>S.round, syncAns:false,
+  send:v=>{ const p = S.players.find(x=>x.isHost); const fb = p && processAnswer(p, S.round, v); if(fb) H.box.feedback(fb); else { H.box.waitFb = false; } }});
+function hostAnsUpdate(){
+  if(!H.name) return;
+  const a = S.ans[H.name];
+  H.box.enable(inRound() && !(a && (a.found || (NET.attempts && a.tries>=NET.attempts))));
 }
 function statusHtml(p){
   if(!NET.online) return '';
@@ -3266,7 +3303,7 @@ function statusHtml(p){
 }
 
 /* ---------- déroulé d'une manche en ligne ---------- */
-function netLoading(){ S.ans = {}; renderBoard(); broadcast({t:'loading', round:S.round, rounds:S.rounds}); }
+function netLoading(){ S.ans = {}; H.box.reset(); hostAnsUpdate(); renderBoard(); broadcast({t:'loading', round:S.round, rounds:S.rounds}); }
 function netRoundStart(sync){
   const m = {t:'round', round:S.round, rounds:S.rounds, cat:S.showCat ? S.cur.cat : null, clipLen:S.clipLen};
   if(NET.sound === 'device'){ m.vid = S.cur.id; m.start = S.clipStart; }
@@ -3400,7 +3437,7 @@ function onWelcome(m){
 function setRoundUI(){
   $('#pRound').textContent = `Manche ${P.round} / ${P.rounds}`;
   $('#pCover').classList.remove('revealed');
-  $('#pFb').textContent = ''; $('#pFb').className = 'fb'; $('#pInput').value = ''; P.confirmFree = '';
+  P.box.reset();
   $('#pPrev').classList.add('hidden');
 }
 function onLoading(m){
@@ -3431,31 +3468,14 @@ function onClip(m){
   if(P.sound==='device') playClip(m.replay);
 }
 function onFeedback(m){
-  P.waitFb = false; $('#pSend').disabled = false;
-  if(m.round !== P.round || !P.ans) return;
-  const fb = $('#pFb');
-  if(m.closed){ fb.className = 'fb ko'; fb.textContent = 'Trop tard, la manche est terminée.'; enableAnswer(false); return; }
-  P.ans.tries = m.tries;
-  if(m.ok){
-    P.ans.found = true; P.ans.points = m.points;
-    fb.className = 'fb ok'; fb.textContent = `✅ Bonne réponse ! +${m.points} points`;
-    enableAnswer(false);
-  } else {
-    P.ans.wrong.push(m.answer);
-    const left = m.max ? m.max - m.tries : null;
-    fb.className = 'fb ko';
-    fb.textContent = '❌ Mauvaise réponse' + (left === null ? ' — réessaie (15 points si tu trouves)' : left > 0 ? ` — encore ${left} essai${left>1?'s':''} (15 points si tu trouves)` : ' — plus d\'essai pour cette manche');
-    if(left !== null && left <= 0) enableAnswer(false);
-    $('#pInput').value = '';
-  }
-  if(typeof m.score === 'number') $('#pScore').textContent = m.score;
-  renderTried();
+  P.box.feedback(m);
+  if(m.round === P.round && typeof m.score === 'number') $('#pScore').textContent = m.score;
 }
 function onReveal(m){
   P.phase = 'revealed'; enableAnswer(false); P.endAt = Date.now(); P.results = m.results; P.scores = m.scores || P.scores;
   const r = (m.results || {})[P.name] || {points:0};
   $('#pPrev').classList.remove('hidden');
-  $('#pPrev').innerHTML = `<div style="color:var(--muted);text-align:center;font-size:14px">C'était…</div><div class="main">${esc(m.title)}</div>`
+  $('#pPrev').innerHTML = `<div style="color:var(--muted);text-align:center;font-size:14px">C'était…</div><div class="main">${esc(m.full || m.title)}</div>`
     + (m.cat && $('#pCat').textContent ? `<div style="text-align:center;margin-top:6px"><span class="cat" style="margin:0">${esc(m.cat)}</span></div>` : '')
     + `<div class="pts">${r.points ? `✅ +${r.points} points` : '❌ 0 point'}</div>`;
   $('#pMsg').textContent = m.last ? 'Dernière manche terminée !' : 'En attente de la manche suivante…';
@@ -3538,66 +3558,94 @@ function playClip(replay){
 $('#pSoundBtn').onclick = ()=>{ try{ P.yt.unMute(); P.yt.setVolume(P.vol); P.yt.playVideo(); }catch(e){} $('#pSoundBtn').classList.add('hidden'); };
 $('#pVol').oninput = e=>{ P.vol = +e.target.value; try{ P.yt.setVolume(P.vol); }catch(err){} };
 
-/* ---------- barre de réponse + menu déroulant ---------- */
-function enableAnswer(on){
-  $('#pInput').disabled = !on; $('#pSend').disabled = !on || P.waitFb;
-  $('#pInput').placeholder = on ? 'Tape le nom de la musique…' : (P.ans && P.ans.found ? 'Trouvé !' : 'Réponses fermées');
-  if(!on) closeSugg();
-}
-function renderTried(){ $('#pTried').innerHTML = (P.ans && P.ans.wrong || []).map(w=>`<span>${esc(w)}</span>`).join(''); }
-function suggList(){
-  const words = normAns($('#pInput').value).split(' ').filter(Boolean);
-  return P.titles.filter(t=>{ const n = normAns(t); return words.every(w=>n.includes(w)); });
-}
-function openSugg(){
-  if($('#pInput').disabled) return;
-  const tried = new Set((P.ans && P.ans.wrong || []).map(normAns));
-  const list = suggList().slice(0, 120);
-  P.sugIdx = -1;
-  const box = $('#pSugg');
-  box.innerHTML = list.length
-    ? list.map(t=>`<div data-v="${esc(t)}" class="${tried.has(normAns(t))?'tried':''}">${esc(t)}</div>`).join('')
-    : `<div class="none">${P.titles.length ? 'Aucun titre ne correspond' : 'Pas de liste de titres : tape la réponse en entier'}</div>`;
-  box.classList.remove('hidden');
-}
-function closeSugg(){ $('#pSugg').classList.add('hidden'); P.sugIdx = -1; }
-function pick(v){ $('#pInput').value = v; closeSugg(); P.confirmFree = ''; }
-$('#pInput').addEventListener('focus', openSugg);
-$('#pInput').addEventListener('input', ()=>{ P.confirmFree = ''; openSugg(); });
-$('#pInput').addEventListener('blur', ()=>setTimeout(closeSugg, 180));
-$('#pSugg').addEventListener('mousedown', e=>{
-  const d = e.target.closest('div[data-v]'); if(!d || d.classList.contains('tried')) return;
-  e.preventDefault(); pick(d.dataset.v);
-});
-$('#pInput').addEventListener('keydown', e=>{
-  const items = [...$('#pSugg').querySelectorAll('div[data-v]:not(.tried)')];
-  if(e.key==='ArrowDown' || e.key==='ArrowUp'){
-    e.preventDefault(); if($('#pSugg').classList.contains('hidden')) openSugg();
-    if(!items.length) return;
-    P.sugIdx = (P.sugIdx + (e.key==='ArrowDown' ? 1 : -1) + items.length) % items.length;
-    items.forEach((it,k)=>it.classList.toggle('act', k===P.sugIdx)); items[P.sugIdx].scrollIntoView({block:'nearest'});
-  } else if(e.key==='Enter'){
-    e.preventDefault();
-    if(P.sugIdx >= 0 && items[P.sugIdx] && !$('#pSugg').classList.contains('hidden')) pick(items[P.sugIdx].dataset.v);
-    else submitAnswer();
-  } else if(e.key==='Escape') closeSugg();
-});
-function submitAnswer(){
-  const v = $('#pInput').value.trim(), fb = $('#pFb');
-  if(!v || $('#pInput').disabled || P.waitFb) return;
-  const n = normAns(v);
-  if(P.ans && P.ans.wrong.some(w=>normAns(w)===n)){ fb.className='fb ko'; fb.textContent = 'Tu as déjà essayé cette réponse.'; return; }
-  const inList = P.titles.some(t=>normAns(t)===n);
-  if(P.titles.length && !inList && P.confirmFree !== n){
-    P.confirmFree = n; fb.className = 'fb';
-    fb.textContent = 'Ce titre n\'est pas dans la liste. Choisis-en un dans le menu, ou appuie encore sur Valider pour l\'envoyer quand même.';
-    return;
+/* ---------- barre de réponse + menu déroulant (utilisée par les joueurs ET par l'hôte) ---------- */
+function makeAnswerBox(pfx, o){
+  const inp = $('#'+pfx+'Input'), sugg = $('#'+pfx+'Sugg'), btn = $('#'+pfx+'Send'), fb = $('#'+pfx+'Fb'), tried = $('#'+pfx+'Tried');
+  const box = {waitFb:false, confirm:'', idx:-1};
+  box.enable = on=>{
+    inp.disabled = !on; btn.disabled = !on || box.waitFb;
+    const a = o.ans();
+    inp.placeholder = on ? 'Tape le nom de la musique…' : (a && a.found ? 'Trouvé !' : 'Réponses fermées');
+    if(!on) box.close();
+  };
+  box.reset = ()=>{ fb.textContent = ''; fb.className = 'fb'; inp.value = ''; box.confirm = ''; box.waitFb = false; box.renderTried(); };
+  box.renderTried = ()=>{ const a = o.ans(); tried.innerHTML = (a && a.wrong || []).map(w=>`<span>${esc(w)}</span>`).join(''); };
+  function matches(){
+    const words = normAns(inp.value).split(' ').filter(Boolean);
+    return o.titles().filter(t=>{ const n = normAns(t); return words.every(w=>n.includes(w)); });
   }
-  P.waitFb = true; $('#pSend').disabled = true; closeSugg();
-  send(P.conn, {t:'answer', round:P.round, title:v});
-  setTimeout(()=>{ if(P.waitFb){ P.waitFb = false; $('#pSend').disabled = $('#pInput').disabled; } }, 5000);
+  box.open = ()=>{
+    if(inp.disabled) return;
+    const a = o.ans(), done = new Set((a && a.wrong || []).map(normAns));
+    const list = matches().slice(0, 150), all = o.titles();
+    box.idx = -1;
+    sugg.innerHTML = list.length
+      ? list.map(t=>`<div data-v="${esc(t)}" class="${done.has(normAns(t))?'tried':''}">${esc(t)}</div>`).join('')
+      : `<div class="none">${all.length ? 'Aucun titre ne correspond' : 'Pas de liste de titres : tape la réponse en entier'}</div>`;
+    sugg.classList.remove('hidden');
+  };
+  box.close = ()=>{ sugg.classList.add('hidden'); box.idx = -1; };
+  function pick(v){ inp.value = v; box.close(); box.confirm = ''; }
+  inp.addEventListener('focus', box.open);
+  inp.addEventListener('input', ()=>{ box.confirm = ''; box.open(); });
+  inp.addEventListener('blur', ()=>setTimeout(box.close, 180));
+  sugg.addEventListener('mousedown', e=>{
+    const d = e.target.closest('div[data-v]'); if(!d || d.classList.contains('tried')) return;
+    e.preventDefault(); pick(d.dataset.v);
+  });
+  inp.addEventListener('keydown', e=>{
+    const items = [...sugg.querySelectorAll('div[data-v]:not(.tried)')];
+    if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+      e.preventDefault(); if(sugg.classList.contains('hidden')) box.open();
+      if(!items.length) return;
+      box.idx = (box.idx + (e.key==='ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items.forEach((it,k)=>it.classList.toggle('act', k===box.idx)); items[box.idx].scrollIntoView({block:'nearest'});
+    } else if(e.key==='Enter'){
+      e.preventDefault();
+      if(box.idx >= 0 && items[box.idx] && !sugg.classList.contains('hidden')) pick(items[box.idx].dataset.v);
+      else box.submit();
+    } else if(e.key==='Escape') box.close();
+  });
+  box.submit = ()=>{
+    const v = inp.value.trim();
+    if(!v || inp.disabled || box.waitFb) return;
+    const n = normAns(v), a = o.ans();
+    if(a && a.wrong.some(w=>normAns(w)===n)){ fb.className = 'fb ko'; fb.textContent = 'Tu as déjà essayé cette réponse.'; return; }
+    const all = o.titles();
+    if(all.length && !all.some(t=>normAns(t)===n) && box.confirm !== n){
+      box.confirm = n; fb.className = 'fb';
+      fb.textContent = 'Ce titre n\'est pas dans la liste. Choisis-en un dans le menu, ou appuie encore sur Valider pour l\'envoyer quand même.';
+      return;
+    }
+    box.waitFb = true; btn.disabled = true; box.close();
+    o.send(v);
+    setTimeout(()=>{ if(box.waitFb){ box.waitFb = false; btn.disabled = inp.disabled; } }, 5000);
+  };
+  btn.onclick = box.submit;
+  box.feedback = m=>{
+    box.waitFb = false; btn.disabled = inp.disabled;
+    const a = o.ans();
+    if(!a || (o.round && m.round !== o.round())) return;
+    if(m.closed){ fb.className = 'fb ko'; fb.textContent = 'Trop tard, la manche est terminée.'; box.enable(false); return; }
+    if(o.syncAns){ a.tries = m.tries; if(m.ok){ a.found = true; a.points = m.points; } else a.wrong.push(m.answer); }
+    if(m.ok){
+      fb.className = 'fb ok'; fb.textContent = `✅ Bonne réponse ! +${m.points} points`;
+      box.enable(false);
+    } else {
+      const left = m.max ? m.max - m.tries : null;
+      fb.className = 'fb ko';
+      fb.textContent = '❌ Mauvaise réponse' + (left === null ? ' — réessaie (15 points si tu trouves)' : left > 0 ? ` — encore ${left} essai${left>1?'s':''} (15 points si tu trouves)` : ' — plus d\'essai pour cette manche');
+      if(left !== null && left <= 0) box.enable(false);
+      inp.value = '';
+    }
+    box.renderTried();
+  };
+  return box;
 }
-$('#pSend').onclick = submitAnswer;
+P.box = makeAnswerBox('p', {titles:()=>P.titles, ans:()=>P.ans, round:()=>P.round, syncAns:true,
+  send:v=>send(P.conn, {t:'answer', round:P.round, title:v})});
+function enableAnswer(on){ P.box.enable(on); }
+function renderTried(){ P.box.renderTried(); }
 
 /* ---------- classement ---------- */
 function renderRank(){
