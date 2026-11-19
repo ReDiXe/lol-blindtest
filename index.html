@@ -277,7 +277,8 @@ label.chk span{color:var(--muted);font-size:13px}
       </div>
       <div class="status" id="status"></div>
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
-        <button class="small ghost" id="exportCats">📋 Copier mes corrections de catégories</button>
+        <button class="small ghost" id="exportList">📥 Télécharger la liste des musiques et leurs catégories</button>
+        <button class="small ghost" id="exportCats" style="margin-top:8px">📋 Copier mes corrections de catégories</button>
         <div id="exportInfo" style="font-size:13px;color:var(--muted);margin-top:8px"></div>
         <textarea id="exportBox" class="hidden" readonly style="width:100%;height:120px;margin-top:8px;background:#010a13;color:var(--gold2);border:1px solid var(--line);font:12px monospace;padding:8px"></textarea>
       </div>
@@ -3261,6 +3262,24 @@ function getCatFilter(){
   if(!on.length) return false;
   return on.length === CATS.length ? null : new Set(on);
 }
+
+/* ---------- liste complète des musiques à vérifier (tableur) ---------- */
+function csvCell(v){ return '"' + String(v==null?'':v).replace(/"/g,'""') + '"'; }
+$('#exportList').onclick = ()=>{
+  if(!S.ids.length){ toast('Charge d\'abord la playlist.'); return; }
+  if(NET.fetching){ toast('Patiente, les titres sont encore en cours d\'analyse…'); return; }
+  const rows = [['N°','Titre de la vidéo','Catégorie','Lien','ID vidéo']];
+  S.ids.forEach((id,k)=>{
+    const t = titleCache[id] || '';
+    rows.push([k+1, t || '(titre introuvable)', t ? categoryOf(id, t) : '', 'https://www.youtube.com/watch?v=' + id, id]);
+  });
+  const csv = '﻿' + rows.map(r=>r.map(csvCell).join(';')).join('\r\n');   // ; et BOM : s'ouvre bien dans Excel en français
+  const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'blindtest-lol-categories.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  toast(`Liste de ${S.ids.length} musiques téléchargée.`, 2500);
+};
 
 /* ---------- connexions des joueurs ---------- */
 function hostConn(c){
