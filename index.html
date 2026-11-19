@@ -170,6 +170,11 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-tra
 .hostAns{display:none;margin-top:16px;padding:14px 16px}
 .online.hostplays .hostAns{display:block}
 .hostAnsLbl{font-size:13px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+
+.catChecks{display:flex;flex-wrap:wrap;gap:8px}
+label.chk{display:flex;align-items:center;gap:7px;margin:0;text-transform:none;letter-spacing:0;font-size:15px;color:var(--gold2);border:1px solid var(--line);padding:7px 11px;border-radius:3px;cursor:pointer}
+label.chk input{width:auto;margin:0;accent-color:var(--teal)}
+label.chk span{color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
@@ -253,6 +258,9 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;text-tra
         <select id="repeat"><option value="no" selected>Non, chaque musique ne sort qu'une fois</option><option value="yes">Oui, tirage totalement au hasard à chaque manche</option></select></div>
       <div class="field"><label>Afficher les catégories</label>
         <select id="showCat"><option value="yes" selected>Oui (champion, skin/skinline, événement, autre)</option><option value="no">Non</option></select></div>
+      <div class="field"><label>Catégories jouées</label>
+        <div class="catChecks" id="catChecks"><span class="note" style="margin:0">Charge la playlist pour choisir les catégories.</span></div>
+        <div class="status" id="catInfo" style="font-size:13px;margin-top:6px"></div></div>
       <div class="field"><label>Mode de jeu</label>
         <select id="netMode"><option value="local">Local : un seul écran, points à la main</option><option value="online">En ligne : chacun répond sur son téléphone / PC</option></select></div>
       <div class="row netOnlyF" style="gap:14px">
@@ -2816,6 +2824,7 @@ async function pollPlaylist(id){
   $('#total').value = S.ids.length;
   setStatus(`✓ ${S.ids.length} morceaux trouvés dans la playlist.`, 'ok');
   $('#startBtn').disabled = false; $('#loadBtn').disabled = false;
+  fetchAllTitles();
 }
 $('#loadBtn').onclick = loadPlaylist;
 
@@ -2841,6 +2850,11 @@ function onState(e){
     if(vid) S.playedIds.add(vid);
     let ttl = ''; try{ ttl = (player.getVideoData()||{}).title || ''; }catch(err){}
     S.cur.cat = categoryOf(vid, ttl);
+    if(S.catFilter && !S.catFilter.has(S.cur.cat)){   // sécurité : vidéo hors des catégories choisies
+      if(++S.skipStreak > 40){ toast('Impossible de trouver une musique de ces catégories.'); endGame(); return; }
+      clearTimeout(S.loadTimer); S.round--; startRound(); return;
+    }
+    S.skipStreak = 0;
     $('#catBadge').textContent = '🏷 ' + S.cur.cat;
     const d = player.getDuration() || 0;
     let start = 0;
@@ -2885,7 +2899,17 @@ function startGame(){
   S.rounds = Math.max(1, +$('#rounds').value || 20);
   if(!S.repeat) S.rounds = Math.min(S.total, S.rounds);
   S.clipBase = +$('#clip').value; S.startMode = $('#startMode').value;
-  S.order = shuffle([...Array(S.total).keys()]); S.ptr = 0; S.round = 0; S.history = []; S.errStreak = 0; S.playedIds = new Set();
+  S.catFilter = getCatFilter();
+  if(S.catFilter === false){ toast('Coche au moins une catégorie.'); return; }
+  let pool = [...Array(S.total).keys()];
+  if(S.catFilter){
+    pool = pool.filter(i=>{ const id = S.ids[i], t = id && titleCache[id]; return t && S.catFilter.has(categoryOf(id, t)); });
+    if(!pool.length){ toast('Aucune musique dans ces catégories.'); return; }
+    if(!S.repeat && S.rounds > pool.length){ S.rounds = pool.length; toast(`Seulement ${pool.length} musique${pool.length>1?'s':''} dans ces catégories : la partie aura ${pool.length} manche${pool.length>1?'s':''}.`, 4500); }
+  }
+  S.pool = pool; S.skipStreak = 0;
+  if(NET.online){ buildTitleList(); broadcast({t:'titles', titles:NET.titles}); }
+  S.order = shuffle(pool.slice()); S.ptr = 0; S.round = 0; S.history = []; S.errStreak = 0; S.playedIds = new Set();
   setShowCat($('#showCat').value === 'yes');
   if(!NET.online) S.players = S.players.filter(p=>!p.remote && !p.isHost);
   S.players.forEach(p=>p.score=0); S.ans = {};
@@ -2898,7 +2922,7 @@ function startGame(){
 function startRound(){
   if(!S.repeat && S.ptr >= S.order.length){ toast('Plus de morceaux disponibles dans la playlist.'); endGame(); return; }
   S.round++;
-  const idx = S.repeat ? Math.floor(Math.random()*S.total) : S.order[S.ptr++];
+  const idx = S.repeat ? S.pool[Math.floor(Math.random()*S.pool.length)] : S.order[S.ptr++];
   S.cur = {idx, id:null, title:null};
   S.clipLen = S.clipBase;
   S.phase = 'loading';
@@ -3183,7 +3207,11 @@ async function fetchTitle(id){
 }
 function buildTitleList(){
   const m = new Map();
-  S.ids.forEach(id=>{ const t = (titleCache[id]||'').trim(); const k = normAns(t); if(k && !m.has(k)) m.set(k, t); });
+  S.ids.forEach(id=>{
+    const t = (titleCache[id]||'').trim(); const k = normAns(t);
+    if(S.catFilter && !S.catFilter.has(categoryOf(id, t))) return;   // partie par catégorie : menu limité à ces catégories
+    if(k && !m.has(k)) m.set(k, t);
+  });
   NET.titles = [...m.values()].sort((a,b)=>a.localeCompare(b, 'fr', {sensitivity:'base'}));
 }
 async function fetchAllTitles(){
@@ -3191,18 +3219,47 @@ async function fetchAllTitles(){
   NET.fetching = true; NET.titlesReady = false; updateLobbyStart();
   const todo = S.ids.filter(id=>!titleCache[id]);
   let done = S.ids.length - todo.length, k = 0;
-  const show = ()=>{ $('#lTitles').className='status'; $('#lTitles').textContent = `Préparation du menu des réponses : ${done} / ${S.ids.length} titres…`; };
+  const show = ()=>titleStatus(`Analyse des titres des vidéos : ${done} / ${S.ids.length}…`, '');
   show();
   async function worker(){ while(k < todo.length){ const id = todo[k++]; const t = await fetchTitle(id); if(t) titleCache[id] = t; done++; if(done % 5 === 0) show(); } }
   await Promise.all(Array.from({length:6}, worker));
   try{ localStorage.setItem('bt-lol-titles', JSON.stringify(titleCache)); }catch(e){}
   buildTitleList();
   const miss = S.ids.filter(id=>!titleCache[id]).length;
-  const st = $('#lTitles');
-  if(miss === S.ids.length){ st.className='status err'; st.textContent = '⚠ Impossible de récupérer les titres des vidéos : le menu déroulant sera vide, les joueurs devront taper la réponse en entier.'; }
-  else { st.className='status ok'; st.textContent = `✓ ${NET.titles.length} titres dans le menu des réponses` + (miss ? ` (${miss} vidéos introuvables : privées ou supprimées)` : ''); }
+  if(miss === S.ids.length) titleStatus('⚠ Impossible de récupérer les titres des vidéos : pas de menu déroulant ni de choix de catégories (toute la playlist sera jouée).', 'err');
+  else titleStatus(`✓ ${S.ids.length - miss} titres récupérés` + (miss ? ` (${miss} vidéos introuvables : privées ou supprimées)` : ''), 'ok');
   NET.fetching = false; NET.titlesReady = true; updateLobbyStart();
+  renderCatChecks();
   broadcast({t:'titles', titles:NET.titles});
+}
+
+function titleStatus(msg, cls){ ['#lTitles','#catInfo'].forEach(s=>{ const e = $(s); e.className = 'status ' + cls; e.textContent = msg; }); }
+
+/* ---------- partie par catégorie ---------- */
+let savedCats = null;
+try{ savedCats = JSON.parse(localStorage.getItem('bt-lol-catsel')||'null'); }catch(e){}
+function catCounts(){
+  const n = {}; CATS.forEach(c=>n[c]=0);
+  S.ids.forEach(id=>{ const t = titleCache[id]; if(t) n[categoryOf(id, t)]++; });
+  return n;
+}
+function renderCatChecks(){
+  const box = $('#catChecks');
+  if(!S.ids.some(id=>titleCache[id])){ box.innerHTML = '<span class="note" style="margin:0">Toute la playlist (titres indisponibles)</span>'; return; }
+  const n = catCounts(), sel = savedCats ? new Set(savedCats) : new Set(CATS);
+  box.innerHTML = CATS.map(c=>`<label class="chk"><input type="checkbox" value="${esc(c)}" ${sel.has(c)?'checked':''}> ${esc(c)} <span>(${n[c]})</span></label>`).join('');
+}
+$('#catChecks').addEventListener('change', ()=>{
+  savedCats = [...$('#catChecks').querySelectorAll('input:checked')].map(i=>i.value);
+  try{ localStorage.setItem('bt-lol-catsel', JSON.stringify(savedCats)); }catch(e){}
+});
+// null = toute la playlist, false = rien de coché, sinon l'ensemble des catégories choisies
+function getCatFilter(){
+  const boxes = [...$('#catChecks').querySelectorAll('input')];
+  if(!boxes.length) return null;
+  const on = boxes.filter(b=>b.checked).map(b=>b.value);
+  if(!on.length) return false;
+  return on.length === CATS.length ? null : new Set(on);
 }
 
 /* ---------- connexions des joueurs ---------- */
